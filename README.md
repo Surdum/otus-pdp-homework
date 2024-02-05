@@ -1,1 +1,1 @@
-# python-developer-professional-homework
+# Otus Python Developer Professional homework repository
