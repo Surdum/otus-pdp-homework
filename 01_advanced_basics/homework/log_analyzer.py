@@ -11,12 +11,11 @@ import sys
 import re
 import os
 
-
 config = {
     "REPORT_SIZE": 1000,
     "REPORT_DIR": r".\reports",
     "LOG_DIR": r".\log",
-    "FAIL_THRESHOLD": 0.9
+    "FAIL_THRESHOLD": 0.9,
 }
 
 config_mapping = {
@@ -27,11 +26,30 @@ config_mapping = {
     "LOG_FILE": str,
 }
 
-line_format = re.compile(r'(?P<remote_addr>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (?P<remote_user>-|\w+) {1,2}(?P<http_x_real_ip>-|\w+) '
-                         r'\[(?P<time_local>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] '
-                         r'(?P<request>(\"0\")|(\"(?P<method>GET|POST|HEAD|PUT|PATCH|OPTIONS) )(?P<url>.+) (http\/1\.[0|1]")) '
-                         r'(?P<status>\d{3}) (?P<body_bytes_sent>\d+) (\"(?P<http_referer>(\-)|(.+))\") '
-                         r'(\"(?P<other_info>.+)\") (?P<request_time>[\d\.]+)', re.IGNORECASE)
+line_format = re.compile(
+    r"(?P<remote_addr>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (?P<remote_user>-|\w+) {1,2}(?P<http_x_real_ip>-|\w+) "
+    r"\[(?P<time_local>\d{2}\/[a-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] "
+    r'(?P<request>(\"0\")|(\"(?P<method>GET|POST|HEAD|PUT|PATCH|OPTIONS) )(?P<url>.+) (http\/1\.[0|1]")) '
+    r"(?P<status>\d{3}) (?P<body_bytes_sent>\d+) (\"(?P<http_referer>(\-)|(.+))\") "
+    r"(\"(?P<other_info>.+)\") (?P<request_time>[\d\.]+)",
+    re.IGNORECASE,
+)
+
+fields = (
+    "remote_addr",
+    "remote_user",
+    "http_x_real_ip",
+    "time_local",
+    "request",
+    "status",
+    "body_bytes_sent",
+    "http_referer",
+    "http_user_agent",
+    "http_x_forwarded_for",
+    "http_X_REQUEST_ID",
+    "http_X_RB_USER",
+    "request_time",
+)
 
 
 def configure_logging(cfg):
@@ -53,6 +71,7 @@ def log_error(func):
             return func(*args, **kwargs)
         except BaseException as e:
             logging.exception(f"{e}; function: {func.__name__}", exc_info=True)
+
     return inner
 
 
@@ -115,13 +134,19 @@ def log_parser(filename: str):
     except Exception as e:
         logging.exception(f"Exception while reading file `{filename}`: {e}")
         return
-    if not os.path.exists(cfg['REPORT_DIR']):
-        os.mkdir(cfg['REPORT_DIR'])
-    report_filepath = os.path.join(cfg['REPORT_DIR'], f'report-{log_date.strftime("%Y.%m.%d")}.html')
-    if os.path.exists(report_filepath):
-        return
-    results = defaultdict(lambda: {"count": 0, "time_sum": 0., "time_avg": 0., "time_max": 0., "time": AlwaysSortedList()})
-    total_time = 0.
+
+
+def make_report(filename: str, cfg: dict[str, typing.Any]) -> str:
+    results = defaultdict(
+        lambda: {
+            "count": 0,
+            "time_sum": 0.0,
+            "time_avg": 0.0,
+            "time_max": 0.0,
+            "time": AlwaysSortedList(),
+        }
+    )
+    total_time = 0.0
     total_parsed_count = 0
     total_count = 0
     for result in log_parser(filename):
@@ -129,39 +154,77 @@ def log_parser(filename: str):
         if not result:
             continue
         total_parsed_count += 1
-        obj = results[result['url']]
-        req_time = float(result['request_time'])
-        obj['count'] += 1
-        obj['time_sum'] += req_time
-        obj['time_max'] = max(obj['time_max'], req_time)
-        obj['time'].append(req_time)
+        obj = results[result["url"]]
+        req_time = float(result["request_time"])
+        obj["count"] += 1
+        obj["time_sum"] += req_time
+        obj["time_max"] = max(obj["time_max"], req_time)
+        obj["time"].append(req_time)
         total_time += req_time
     if total_count == 0:
         logging.error(f"File is empty: {filename}")
-        return
-    if (parsed_k := total_parsed_count / total_count) < cfg['FAIL_THRESHOLD']:
-        logging.error(f"Too many lines weren`t parsed: {round((1 - parsed_k) * 100, 2)}%")
-        return
-    data = AlwaysSortedList(key=lambda x: -x['time_sum'])
+        return ""
+    if (parsed_k := total_parsed_count / total_count) < cfg["FAIL_THRESHOLD"]:
+        logging.error(
+            f"Too many lines weren`t parsed: {round((1 - parsed_k) * 100, 2)}%"
+        )
+        return ""
+    data = AlwaysSortedList(key=lambda x: -x["time_sum"])
     for url, obj in results.items():
-        obj['time_sum'] = round(obj['time_sum'], 3)
-        obj['time_max'] = round(obj['time_max'], 3)
-        obj['time_avg'] = round(obj['time_sum'] / obj['count'], 3)
-        obj['count_perc'] = round(obj['count'] / total_parsed_count * 100., 3)
-        obj['time_perc'] = round(obj['time_sum'] / total_time * 100., 3)
-        obj['time_med'] = obj['time'][obj['count'] // 2]
-        obj['url'] = url
-        del obj['time']
+        obj["time_sum"] = round(obj["time_sum"], 3)
+        obj["time_max"] = round(obj["time_max"], 3)
+        obj["time_avg"] = round(obj["time_sum"] / obj["count"], 3)
+        obj["count_perc"] = round(obj["count"] / total_parsed_count * 100.0, 3)
+        obj["time_perc"] = round(obj["time_sum"] / total_time * 100.0, 3)
+        obj["time_med"] = obj["time"][obj["count"] // 2]
+        obj["url"] = url
+        del obj["time"]
         data.append(obj)
     template = string.Template(open("report.html").read())
-    with open(report_filepath, 'w', encoding='utf-8') as f:
-        f.write(template.safe_substitute(table_json=json.dumps(data[:cfg['REPORT_SIZE']])))
+    return template.safe_substitute(table_json=json.dumps(data[: cfg["REPORT_SIZE"]]))
+
+
+def save_report(content: str, report_filepath: str) -> None:
+    with open(report_filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def exit_message(reason: str) -> str:
+    return f"Log analyzer finished: {reason}"
+
+
+@log_error
+def main(cfg: dict[str, typing.Any]) -> None:
+    logging.info("Log analyzer started")
+    filename, log_date = get_last_log(cfg["LOG_DIR"])
+    if not filename:
+        logging.info(
+            exit_message(
+                f"directory `{cfg['LOG_DIR']}` is empty or not containing log files"
+            )
+        )
+        return
+    if not os.path.exists(cfg["REPORT_DIR"]):
+        os.mkdir(cfg["REPORT_DIR"])
+    report_filepath = os.path.join(
+        cfg["REPORT_DIR"], f'report-{log_date.strftime("%Y.%m.%d")}.html'
+    )
+    if os.path.exists(report_filepath):
+        logging.info(
+            exit_message(
+                f"there is an existing report for `{filename}`: `{report_filepath}`"
+            )
+        )
+        return
+    html_report = make_report(filename, cfg)
+    save_report(html_report, report_filepath)
+    logging.info(exit_message(f"report created"))
 
 
 if __name__ == "__main__":
     # Parse arguments
-    parser = argparse.ArgumentParser(prog='Log Analyzer')
-    parser.add_argument('--config', help='Config INI file')
+    parser = argparse.ArgumentParser(prog="Log Analyzer")
+    parser.add_argument("--config", help="Config INI file")
     arguments = parser.parse_args()
     if arguments.config:
         if not os.path.exists(arguments.config):
