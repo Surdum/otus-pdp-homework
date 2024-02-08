@@ -108,15 +108,12 @@ def parse_line(line: str) -> dict:
 
 
 def log_parser(filename: str):
-    with log_reader(filename) as f:
-        for line in f:
-            yield parse_line(line.decode())
-
-
-@log_error
-def main(cfg):
-    filename, log_date = get_last_log(cfg['LOG_DIR'])
-    if not filename:
+    try:
+        with log_reader(filename) as f:
+            for line in f:
+                yield parse_line(line.decode())
+    except Exception as e:
+        logging.exception(f"Exception while reading file `{filename}`: {e}")
         return
     if not os.path.exists(cfg['REPORT_DIR']):
         os.mkdir(cfg['REPORT_DIR'])
