@@ -33,9 +33,18 @@ line_format = re.compile(r'(?P<remote_addr>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) (
                          r'(?P<status>\d{3}) (?P<body_bytes_sent>\d+) (\"(?P<http_referer>(\-)|(.+))\") '
                          r'(\"(?P<other_info>.+)\") (?P<request_time>[\d\.]+)', re.IGNORECASE)
 
-fields = ("remote_addr", "remote_user", "http_x_real_ip", "time_local", "request",
-          "status", "body_bytes_sent", "http_referer", "http_user_agent", "http_x_forwarded_for",
-          "http_X_REQUEST_ID", "http_X_RB_USER", "request_time")
+
+def configure_logging(cfg):
+    logging_kwargs = {
+        "format": "[%(asctime)s] %(levelname).1s %(message)s",
+        "datefmt": "%Y.%m.%d %H:%M:%S",
+        "level": logging.INFO,
+    }
+    if cfg.get("LOG_FILE", None):
+        logging_kwargs["filename"] = cfg["LOG_FILE"]
+    else:
+        logging_kwargs["stream"] = sys.stdout
+    logging.basicConfig(**logging_kwargs)
 
 
 def log_error(func):
@@ -169,11 +178,6 @@ if __name__ == "__main__":
             k = k.upper()
             config[k] = config_mapping.get(k, str)(v)
     # Configure logging
-    logging_kwargs = {"format": '[%(asctime)s] %(levelname).1s %(message)s', 'datefmt': '%Y.%m.%d %H:%M:%S'}
-    if config.get("LOG_FILE", None):
-        logging_kwargs["filename"] = config["LOG_FILE"]
-    else:
-        logging_kwargs["stream"] = sys.stdout
-    logging.basicConfig(**logging_kwargs)
+    configure_logging(config)
     #
     main(config)
