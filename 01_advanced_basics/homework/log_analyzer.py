@@ -1,15 +1,15 @@
-from collections import defaultdict
-from datetime import datetime
-import configparser
 import argparse
-import logging
-import string
-import typing
+import configparser
 import gzip
 import json
-import sys
-import re
+import logging
 import os
+import re
+import string
+import sys
+import typing
+from collections import defaultdict
+from datetime import datetime
 
 config = {
     "REPORT_SIZE": 1000,
