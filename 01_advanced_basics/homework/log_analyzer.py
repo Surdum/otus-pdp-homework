@@ -103,6 +103,8 @@ def get_last_log(log_dir: str) -> typing.Tuple[str, datetime | None]:
     last_date: datetime | None = None
     for _, _, files in os.walk(log_dir):
         for file in files:
+            if not re.fullmatch(r"nginx-access-ui\.log-(\d+)(?:\.gz)?", file):
+                continue
             m = re.search(r"nginx-access-ui\.log-(\d+)(?:\.gz)?", file)
             if m is None:
                 continue
