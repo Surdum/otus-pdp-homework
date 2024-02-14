@@ -19,10 +19,10 @@ jobs:
 
       - name: Run formatters
         run: |
-          black 01_advanced_basics\homework\log_analyzer.py
-          isort 01_advanced_basics\homework\log_analyzer.py
-          mypy 01_advanced_basics\homework\log_analyzer.py
+          black 01_advanced_basics/homework/log_analyzer.py
+          isort 01_advanced_basics/homework/log_analyzer.py
+          mypy 01_advanced_basics/homework/log_analyzer.py
 
       - name: Run tests
         run:
-          python 01_advanced_basics\homework\tests.py
+          python 01_advanced_basics/homework/tests.py
