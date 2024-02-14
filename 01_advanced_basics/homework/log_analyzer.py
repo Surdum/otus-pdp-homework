@@ -76,13 +76,10 @@ def log_error(func):
 
 
 class AlwaysSortedList(list):
-    get_key: callable
+    get_key: typing.Callable
 
-    def __init__(self, key: callable = None):
-        if key is None:
-            self.get_key = lambda x: x
-        else:
-            self.get_key = key
+    def __init__(self, key: typing.Callable = lambda x: x):
+        self.get_key = key
         super().__init__()
 
     def append(self, item: int | float | dict) -> None:
@@ -99,16 +96,16 @@ class AlwaysSortedList(list):
         self.insert(right, item)
 
 
-def get_last_log(log_dir: str) -> [str, datetime]:
+def get_last_log(log_dir: str) -> typing.Tuple[str, datetime | None]:
     if not os.path.exists(log_dir):
         raise FileNotFoundError("LOG_DIR does not exist")
     filename = ""
     last_date: datetime | None = None
     for _, _, files in os.walk(log_dir):
         for file in files:
-            if not re.fullmatch(r"nginx-access-ui\.log-(\d+)(?:\.gz)?", file):
-                continue
             m = re.search(r"nginx-access-ui\.log-(\d+)(?:\.gz)?", file)
+            if m is None:
+                continue
             log_date = datetime.strptime(m.group(1), "%Y%m%d")
             if not last_date or (last_date and log_date > last_date):
                 last_date = log_date
@@ -116,9 +113,11 @@ def get_last_log(log_dir: str) -> [str, datetime]:
     return os.path.join(log_dir, filename), last_date
 
 
-def log_reader(filename: str) -> typing.IO[bytes]:
-    open_func = gzip.open if filename.endswith(".gz") else open
-    return open_func(filename, "rb")
+def log_reader(filename: str) -> gzip.GzipFile | typing.BinaryIO:
+    if filename.endswith(".gz"):
+        return gzip.open(filename, "rb")
+    else:
+        return open(filename, "rb")
 
 
 def parse_line(line: str) -> dict:
@@ -137,7 +136,7 @@ def log_parser(filename: str):
 
 
 def make_report(filename: str, cfg: dict[str, typing.Any]) -> str:
-    results = defaultdict(
+    results: dict = defaultdict(
         lambda: {
             "count": 0,
             "time_sum": 0.0,
@@ -197,7 +196,7 @@ def exit_message(reason: str) -> str:
 def main(cfg: dict[str, typing.Any]) -> None:
     logging.info("Log analyzer started")
     filename, log_date = get_last_log(cfg["LOG_DIR"])
-    if not filename:
+    if not filename or not log_date:
         logging.info(
             exit_message(
                 f"directory `{cfg['LOG_DIR']}` is empty or not containing log files"
